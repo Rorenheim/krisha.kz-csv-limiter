@@ -2,28 +2,22 @@ import json
 import logging
 import sys
 from logging.config import fileConfig
-
 import scr.config as cfg
 import scr.misc.msg as msg
-from db.service import check_db_exists
 from scr.crawler import run_crawler, get_response
 from scr.first_page import FirstPage
-
 
 fileConfig("logging.ini")
 logger = logging.getLogger()
 
-
-def main() -> None:
+def main(max_urls) -> None:
     try:
-        check_db_exists()
         get_response(cfg.HOME_URL)
         url: str = FirstPage.get_url(**search_params)
-        run_crawler(url)
+        run_crawler(url, max_urls)
     except Exception as error:
         logger.critical(msg=error, exc_info=True)
         sys.exit()
-
 
 if __name__ == "__main__":
     try:
@@ -34,4 +28,10 @@ if __name__ == "__main__":
     except IOError as error:
         logger.warning(msg.READ_SEARCH_PARAMS_ERROR.format(error))
         search_params: dict = {}
-    main()
+
+    if len(sys.argv) > 1:
+        max_urls = int(sys.argv[1])
+    else:
+        max_urls = 4  # Default limit if not provided
+
+    main(max_urls)
