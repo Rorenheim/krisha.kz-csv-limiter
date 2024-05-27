@@ -123,19 +123,35 @@ def get_next_url(content: bs) -> str:
     return url
 
 
-def run_crawler(url: str) -> None:
+import csv
+
+import csv
+
+def run_crawler(url: str, max_urls: int) -> None:
     response: Response = get_response(url)
     content: bs = get_content(response)
     ads_count: int = get_ads_count(content)
     page_count: int = get_page_count(content, ads_count)
 
+    scraped_urls = 0
+    all_flats_data = []
+
     with logging_redirect_tqdm():
         for num in trange(1, page_count + 1):
             ads_on_page: ResultSet = get_ads_on_page(content)
             ads_urls: list[str] = get_ads_urls(ads_on_page)
+
+            if scraped_urls + len(ads_urls) > max_urls:
+                ads_urls = ads_urls[:max_urls - scraped_urls]
+
             flats_data: list[Flat] = get_flats_data_on_page(ads_urls)
-            insert_flats_data_db(flats_data)
+            all_flats_data.extend(flats_data)
+
+            scraped_urls += len(ads_urls)
             logger.info(msg.CR_PROCESS.format(num, page_count))
+
+            if scraped_urls >= max_urls:
+                break
 
             sleep(cfg.SLEEP_TIME)
 
@@ -143,5 +159,15 @@ def run_crawler(url: str) -> None:
                 next_url: str = get_next_url(content)
                 response: Response = get_response(next_url)
                 content: bs = get_content(response)
+
+    # Save results to CSV
+    if all_flats_data:
+        fieldnames = all_flats_data[0].__dict__.keys()  # Assuming Flat objects have __dict__ attribute
+
+        with open('scraped_data.csv', 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for flat in all_flats_data:
+                writer.writerow(flat.__dict__)
 
     logger.info(msg.CR_STOPPED)
